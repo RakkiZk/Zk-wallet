@@ -13,9 +13,16 @@ use hex::encode;
 use pbc_contract_common::address::Address;
 use pbc_contract_common::context::ContractContext;
 use pbc_contract_common::events::EventGroup;
-use pbc_contract_common::zk::{SecretVarId, ZkInputDef, ZkState, ZkStateChange};
+use pbc_contract_common::zk::{ZkState, ZkStateChange, ZkInputDef};
+use pbc_contract_codegen::{state, init, zk_on_secret_input};
+use crate::zk_compute::store_private_key;
+
+use pbc_contract_common::shortname::ShortnameZkVariableInputted;
+
 use read_write_state_derive::ReadWriteState;
 use create_type_spec_derive::CreateTypeSpec;
+
+mod zk_compute;
 
 #[derive(ReadWriteState, Debug)]
 #[repr(C)]
@@ -33,13 +40,13 @@ enum SecretVarType {
 #[derive(ReadWriteState, CreateTypeSpec, Clone)]
 struct KeyPair {
     public_key: Vec<u8>,
-    private_key: Vec<u8>, 
+    private_key: Vec<u8>,
 }
 
 #[state]
 struct ContractState {
     owner: Address,
-    key_pairs: Vec<KeyPair>,
+    key_pair: Vec<KeyPair>,
     counter: u64,
 }
 
@@ -47,14 +54,13 @@ struct ContractState {
 fn initialize(ctx: ContractContext, _zk_state: ZkState<SecretVarMetadata>) -> (ContractState, Vec<EventGroup>) {
     let state = ContractState {
         owner: ctx.sender,
-        key_pairs: Vec::new(),
+        key_pair: Vec::new(),
         counter: 0,
     };
 
     (state, vec![])
 }
 
-/// Generates a key pair
 #[zk_on_secret_input(shortname = 0x02)]
 fn generate_key_action(
     context: ContractContext,
@@ -66,19 +72,30 @@ fn generate_key_action(
         "Only the owner can generate keys."
     );
 
-    // Generate a new key pair
-    let seed = b"dynamic_seed_based_on_context";
+    let seed = b"fixed_deterministic_seed";
     let dynamic_component = state.counter.to_be_bytes();
     
-    let (secret_key, public_key) = generate_key_pair(seed, &dynamic_component);
+    // Use a unique identifier combining sender address and contract address
+    let unique_id = [
+        context.sender.to_string().as_bytes(),
+        context.contract_address.to_string().as_bytes(),
+        &state.counter.to_be_bytes(),
+    ].concat();
+    
+    
 
-    // Add the new key pair to the contract state
-    state.key_pairs.push(KeyPair {
+    let (secret_key, public_key) = generate_key_pair(seed, &dynamic_component, &unique_id);
+
+    // Store private key in ZK context
+    let sbi_key = store_private_key(secret_key);
+    
+    // Update the contract state with the public key only
+    state.key_pair.push(KeyPair {
         public_key: public_key.to_vec(),
         private_key: vec![],
     });
 
-    // Create ZkInputDef with correct type
+    // Define ZK input
     let input_def = ZkInputDef::with_metadata(
         None,
         SecretVarMetadata {
@@ -96,10 +113,12 @@ fn generate_key_action(
 }
 
 /// Generates a key pair (public and private keys)
-fn generate_key_pair(seed: &[u8], dynamic_component: &[u8]) -> ([u8; 32], [u8; 32]) {
+fn generate_key_pair(seed: &[u8], dynamic_component: &[u8], unique_id: &[u8]) -> ([u8; 32], [u8; 32]) {
+    // Combine the seed, dynamic component, and a unique identifier
     let mut hasher = Sha512::new();
     hasher.update(seed);
     hasher.update(dynamic_component);
+    hasher.update(unique_id); // Include unique identifier to ensure uniqueness
     let hash = hasher.finalize();
 
     let secret_key_bytes = &hash[..32];
