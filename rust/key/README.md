@@ -1,4 +1,4 @@
-# Zero Knowledge voting simple
+# Zero Knowledge Wallet simple
 
 ZK voting does the same as the public vote, with a notable exception the votes are anonymous and only the final result is revealed in the public state
 
