@@ -1,15 +1,11 @@
 #![doc = include_str!("../README.md")]
 
-#[macro_use]
-extern crate pbc_contract_codegen;
 extern crate pbc_contract_common;
 extern crate sha2;
 extern crate secp256k1;
-extern crate hex;
 
 use secp256k1::{Secp256k1, SecretKey as SecpSecretKey, PublicKey as SecpPublicKey};
 use sha2::{Sha512, Digest};
-use hex::encode;
 use pbc_contract_common::address::Address;
 use pbc_contract_common::context::ContractContext;
 use pbc_contract_common::events::EventGroup;
@@ -18,6 +14,10 @@ use pbc_contract_codegen::{state, init, zk_on_secret_input};
 use create_type_spec_derive::CreateTypeSpec;
 use read_write_state_derive::ReadWriteState;
 use pbc_contract_common::avl_tree_map::AvlTreeMap;
+
+
+use crate::zk_compute::store_private_key;
+mod zk_compute;
 
 #[derive(ReadWriteState, Debug)]
 #[repr(C)]
@@ -72,14 +72,17 @@ fn generate_key_action(
     // Generate a deterministic key pair
     let (secret_key, public_key) = generate_key_pair(state.counter);
 
+    // Store the private key securely in ZK
+    let sbi_private_key = store_private_key(secret_key);
+
     // Generate a UID for the key pair
     let uid = state.counter;
 
-    // Update the contract state with the key pair including UID
+    // Update the contract state with the key pair including UID and public key
     state.key_pair.insert(uid, KeyPair {
         uid,
         public_key: public_key.to_vec(),
-        private_key: vec![], 
+        private_key: vec![],
     });
 
     // Define ZK input with UID
