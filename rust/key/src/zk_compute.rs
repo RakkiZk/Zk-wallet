@@ -1,6 +1,6 @@
 use pbc_zk::*;
 
-// Define the type for storing private key
+// Define the struct for storing private keys
 pub struct SbiPrivateKey {
     private_key: [u8; 32],
 }
@@ -15,12 +15,26 @@ pub fn retrieve_private_key(sbi_key: SbiPrivateKey) -> [u8; 32] {
     sbi_key.private_key
 }
 
-// Example of using the stored private key
-#[zk_compute(shortname = 0x61)]
-pub fn use_stored_private_key() -> [u8; 32] {
-    let private_key = SbiPrivateKey {
-        private_key: [0u8; 32], 
-    };
+// Define the struct for storing signatures
+pub struct SbiSignature {
+    pub signature: [u8; 64], 
+}
 
-    retrieve_private_key(private_key)
+// Function to store a signature
+pub fn store_signature(signature: [u8; 64]) -> SbiSignature {
+    SbiSignature { signature }
+}
+
+// Function for storing the private key
+#[zk_compute(shortname = 0x61)]
+pub fn store_private_key_action(private_key: [u8; 32]) -> [u8; 32] {
+    let stored_private_key = store_private_key(private_key);
+    stored_private_key.private_key
+}
+
+// Function for storing the signature
+#[zk_compute(shortname = 0x62)]
+pub fn store_signature_action(signature: [u8; 64]) -> [u8; 64] {
+    let stored_signature = store_signature(signature);
+    stored_signature.signature
 }

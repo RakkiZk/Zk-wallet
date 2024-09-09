@@ -29,9 +29,11 @@ create_type_spec_derive.workspace = true
 pbc_contract_codegen.workspace = true
 pbc_zk.workspace = true
 sha2 = "0.10" 
-secp256k1 = "0.29.0"
 base64 = "0.13"  
 hex = "0.4"
+secp256k1 = "0.29.0"
+serde = { version = "1.0.209", features = ["derive"] }
+serde_derive = "1.0.209"
 
 
 
